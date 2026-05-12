@@ -1,16 +1,13 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useState, useEffect, Suspense } from "react";
+import { Suspense } from "react";
 
 function Player() {
   const searchParams = useSearchParams();
   const fileId = searchParams.get("id");
   const name = searchParams.get("name") || "文件";
   const mimeType = searchParams.get("type") || "";
-
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
 
   if (!fileId) {
     return (
@@ -20,19 +17,10 @@ function Player() {
     );
   }
 
-  if (!mounted) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
-        <div className="text-3xl animate-spin">⏳</div>
-      </div>
-    );
-  }
-
   const isVideo = mimeType.startsWith("video/");
   const isAudio = mimeType.startsWith("audio/");
   const isImage = mimeType.startsWith("image/");
 
-  const directUrl = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
   const viewUrl = `https://drive.google.com/file/d/${fileId}/view`;
 
   return (
@@ -55,35 +43,25 @@ function Player() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6">
-        {isVideo && (
+        {(isVideo || isAudio) && (
           <div className="w-full rounded-lg overflow-hidden bg-black">
-            <video
-              src={directUrl}
-              controls
-              autoPlay
-              className="w-full max-h-[80vh]"
-            >
-              <track kind="captions" />
-              您的浏览器不支持视频播放
-            </video>
-          </div>
-        )}
-
-        {isAudio && (
-          <div className="w-full rounded-lg overflow-hidden bg-gray-800 p-8 flex items-center justify-center">
-            <audio src={directUrl} controls autoPlay className="w-full max-w-lg">
-              您的浏览器不支持音频播放
-            </audio>
+            <iframe
+              src={`https://drive.google.com/file/d/${fileId}/preview`}
+              className="w-full"
+              style={{ height: isAudio ? "200px" : "80vh", border: "none" }}
+              allow="autoplay"
+              allowFullScreen
+            />
           </div>
         )}
 
         {isImage && (
-          <div className="w-full rounded-lg overflow-hidden bg-black flex items-center justify-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`https://drive.google.com/uc?export=view&id=${fileId}`}
-              alt={name}
-              className="max-w-full max-h-[80vh] object-contain"
+          <div className="w-full rounded-lg overflow-hidden bg-black">
+            <iframe
+              src={`https://drive.google.com/file/d/${fileId}/preview`}
+              className="w-full"
+              style={{ height: "80vh", border: "none" }}
+              allow="autoplay"
             />
           </div>
         )}

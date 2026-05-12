@@ -14,9 +14,9 @@ export async function POST(request: NextRequest) {
     }
 
     const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || undefined;
-    const uploadUrl = await initiateResumableUpload(name, mimeType, size, folderId);
+    const { uploadUrl, fileId } = await initiateResumableUpload(name, mimeType, size, folderId);
 
-    return NextResponse.json({ uploadUrl });
+    return NextResponse.json({ uploadUrl, fileId });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "获取上传地址失败";
     return NextResponse.json({ error: message }, { status: 500 });

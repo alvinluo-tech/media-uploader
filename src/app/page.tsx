@@ -1,5 +1,12 @@
 import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
 
-export default function Home() {
-  redirect("/upload");
+export default async function Home() {
+  const user = await getCurrentUser();
+
+  if (user) {
+    redirect("/upload");
+  } else {
+    redirect("/login");
+  }
 }

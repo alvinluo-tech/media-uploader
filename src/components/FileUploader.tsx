@@ -63,21 +63,23 @@ export default function FileUploader({
     [addFiles]
   );
 
-  const uploadFile = async (uploadFile: UploadFile) => {
+  const uploadFile = async (fileItem: UploadFile) => {
     setFiles((prev) =>
       prev.map((f) =>
-        f.id === uploadFile.id ? { ...f, status: "uploading", progress: 0 } : f
+        f.id === fileItem.id ? { ...f, status: "uploading", progress: 0 } : f
       )
     );
+
+    let fileId: string | undefined;
 
     try {
       const initRes = await fetch("/api/upload/init", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: uploadFile.file.name,
-          mimeType: uploadFile.file.type,
-          size: uploadFile.file.size,
+          name: fileItem.file.name,
+          mimeType: fileItem.file.type,
+          size: fileItem.file.size,
         }),
       });
 
@@ -86,37 +88,49 @@ export default function FileUploader({
         throw new Error(err.error || `获取上传地址失败 (${initRes.status})`);
       }
 
-      const { uploadUrl } = await initRes.json();
+      const { uploadUrl, fileId: id } = await initRes.json();
+      fileId = id;
 
-      const fileId = await new Promise<string>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
+        let settled = false;
 
         xhr.upload.addEventListener("progress", (e) => {
           if (e.lengthComputable) {
             const pct = Math.round((e.loaded / e.total) * 100);
             setFiles((prev) =>
               prev.map((f) =>
-                f.id === uploadFile.id ? { ...f, progress: pct } : f
+                f.id === fileItem.id ? { ...f, progress: pct } : f
               )
             );
           }
         });
 
         xhr.addEventListener("load", () => {
+          if (settled) return;
+          settled = true;
           if (xhr.status >= 200 && xhr.status < 300) {
-            const data = JSON.parse(xhr.responseText);
-            resolve(data.id);
+            resolve();
           } else {
             reject(new Error(`上传到 Drive 失败 (${xhr.status})`));
           }
         });
 
-        xhr.addEventListener("error", () => reject(new Error("网络错误")));
-        xhr.addEventListener("abort", () => reject(new Error("已取消")));
+        xhr.addEventListener("error", () => {
+          if (settled) return;
+          settled = true;
+          reject(new Error("网络错误"));
+        });
+
+        xhr.addEventListener("abort", () => {
+          if (settled) return;
+          settled = true;
+          reject(new Error("已取消"));
+        });
 
         xhr.open("PUT", uploadUrl);
-        xhr.setRequestHeader("Content-Type", uploadFile.file.type);
-        xhr.send(uploadFile.file);
+        xhr.setRequestHeader("Content-Type", fileItem.file.type);
+        xhr.send(fileItem.file);
       });
 
       const completeRes = await fetch("/api/upload/complete", {
@@ -134,19 +148,46 @@ export default function FileUploader({
 
       setFiles((prev) =>
         prev.map((f) =>
-          f.id === uploadFile.id
+          f.id === fileItem.id
             ? { ...f, status: "done", progress: 100, link: file.viewLink }
             : f
         )
       );
     } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "";
+
+      // 网络错误时，文件可能已上传成功，尝试用 fileId 验证
+      if (msg === "网络错误" && fileId) {
+        try {
+          const verifyRes = await fetch("/api/upload/complete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fileId }),
+          });
+
+          if (verifyRes.ok) {
+            const { file } = await verifyRes.json();
+            setFiles((prev) =>
+              prev.map((f) =>
+                f.id === fileItem.id
+                  ? { ...f, status: "done", progress: 100, link: file.viewLink }
+                  : f
+              )
+            );
+            return;
+          }
+        } catch {
+          // 验证也失败了，才是真正的失败
+        }
+      }
+
       setFiles((prev) =>
         prev.map((f) =>
-          f.id === uploadFile.id
+          f.id === fileItem.id
             ? {
                 ...f,
                 status: "error",
-                error: err instanceof Error ? err.message : "上传失败",
+                error: msg || "上传失败",
               }
             : f
         )
@@ -156,7 +197,7 @@ export default function FileUploader({
 
   const uploadAll = async () => {
     const pending = files.filter((f) => f.status === "pending");
-    const concurrency = 3;
+    const concurrency = 2;
     let idx = 0;
 
     const workers = Array.from({ length: concurrency }, async () => {
