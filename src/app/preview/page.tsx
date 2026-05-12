@@ -32,7 +32,7 @@ function Player() {
   const isAudio = mimeType.startsWith("audio/");
   const isImage = mimeType.startsWith("image/");
 
-  const embedUrl = `https://drive.google.com/file/d/${fileId}/preview`;
+  const directUrl = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
   const viewUrl = `https://drive.google.com/file/d/${fileId}/view`;
 
   return (
@@ -55,28 +55,35 @@ function Player() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6">
-        {(isVideo || isAudio) && (
+        {isVideo && (
           <div className="w-full rounded-lg overflow-hidden bg-black">
-            <iframe
-              src={embedUrl}
-              width="100%"
-              height="600"
-              allow="autoplay"
-              allowFullScreen
-              className="w-full border-0"
-              title={name}
-            />
+            <video
+              src={directUrl}
+              controls
+              autoPlay
+              className="w-full max-h-[80vh]"
+            >
+              <track kind="captions" />
+              您的浏览器不支持视频播放
+            </video>
+          </div>
+        )}
+
+        {isAudio && (
+          <div className="w-full rounded-lg overflow-hidden bg-gray-800 p-8 flex items-center justify-center">
+            <audio src={directUrl} controls autoPlay className="w-full max-w-lg">
+              您的浏览器不支持音频播放
+            </audio>
           </div>
         )}
 
         {isImage && (
           <div className="w-full rounded-lg overflow-hidden bg-black flex items-center justify-center">
-            <iframe
-              src={embedUrl}
-              width="100%"
-              height="800"
-              className="w-full border-0"
-              title={name}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`https://drive.google.com/uc?export=view&id=${fileId}`}
+              alt={name}
+              className="max-w-full max-h-[80vh] object-contain"
             />
           </div>
         )}
